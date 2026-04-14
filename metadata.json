@@ -1,0 +1,6 @@
+{
+  "name": "Limite Quest",
+  "description": "Uma jornada gamificada para dominar o conceito de limites em Cálculo. Aprenda com micro-lições, gráficos interativos e desafios épicos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["gamification", "interactive-charts", "educational"]
+}
