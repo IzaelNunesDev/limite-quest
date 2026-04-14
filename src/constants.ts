@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Island, UserState } from './types';
+import { Island, UserState, ConceptCard } from './types';
 
 export const INITIAL_USER_STATE: UserState = {
   xp: 0,
@@ -13,14 +13,58 @@ export const INITIAL_USER_STATE: UserState = {
   lastPlayed: null,
   completedLessons: [],
   unlockedIslands: ['island-1'],
-  leitnerBoxes: {
-    1: [],
-    2: [],
-    3: [],
-    4: [],
-  },
+  leitnerBoxes: { 1: [], 2: [], 3: [], 4: [] },
+  conceptLeitnerBoxes: { 1: [], 2: [], 3: [], 4: [] },
   inventory: [],
 };
+
+// ── Concept flashcard deck ────────────────────────────────────────────────────
+// These are shown BEFORE procedural questions in ReviewSession based on tag matching.
+
+export const CONCEPT_CARDS: ConceptCard[] = [
+  {
+    id: 'c1',
+    q: 'O que significa x → 1⁻ ?',
+    a: 'x se aproxima de 1 por valores MENORES que 1 (vindo da esquerda)',
+    tags: ['lateral', 'notation'],
+  },
+  {
+    id: 'c2',
+    q: 'O que significa x → 1⁺ ?',
+    a: 'x se aproxima de 1 por valores MAIORES que 1 (vindo da direita)',
+    tags: ['lateral', 'notation'],
+  },
+  {
+    id: 'c3',
+    q: 'Quando um limite NÃO existe?',
+    a: 'Quando os limites laterais diferem (L⁻ ≠ L⁺), ou quando a função diverge para ±∞',
+    tags: ['lateral', 'existence'],
+  },
+  {
+    id: 'c4',
+    q: 'Por que 0/0 é indeterminação?',
+    a: 'Porque não diz qual é o limite — pode ser qualquer número. Precisamos fatorar para descobrir.',
+    tags: ['indeterminacao', 'factoring'],
+  },
+  {
+    id: 'c5',
+    q: 'O limite fundamental da trigonometria:',
+    a: 'lim sin(u)/u = 1, quando u → 0. O argumento do seno DEVE ser igual ao denominador.',
+    tags: ['trig', 'fundamental'],
+  },
+  {
+    id: 'c6',
+    q: 'Qual é o limite de uma função contínua em x = a?',
+    a: 'Simplesmente f(a) — basta substituir. Funções contínuas "não têm saltos".',
+    tags: ['continuidade', 'substituicao'],
+  },
+  {
+    id: 'c7',
+    q: 'Quando x → ∞ e numerador e denominador têm o mesmo grau, o limite é...?',
+    a: 'A razão entre os coeficientes LÍDERES (do maior grau).',
+    tags: ['infinito', 'racional'],
+  },
+];
 
 export const ISLANDS: Island[] = [
   {
@@ -183,39 +227,75 @@ export const ISLANDS: Island[] = [
         description: 'Vindo de caminhos diferentes.',
         xpReward: 70,
         items: [
+          // ── PHASE 1: conceito visual (sem fórmulas) ──────────────────────
           {
-            type: 'explanation',
-            title: 'Os Dois Caminhos',
-            content: 'Para que um limite exista em x = a, não basta chegar "perto" — precisamos que o valor seja o mesmo VINDO DA ESQUERDA (x < a) e VINDO DA DIREITA (x > a).\n\nSe os dois lados dão valores diferentes, o limite NÃO EXISTE!\n\nIsso é como duas estradas que levam a destinos diferentes — se não concordam, não há um destino único.',
+            type: 'concept',
+            title: 'Dois caminhos, um destino?',
+            visual: 'bridge-broken',
+            caption: 'Mesmo ponto, destinos diferentes — a ponte está quebrada.',
           },
+          // ── PHASE 2: exemplo guiado ────────────────────────────────────
+          {
+            type: 'worked-example',
+            title: 'Resolvendo |x−1| / (x−1)',
+            expression: '|x−1| / (x−1)',
+            steps: [
+              {
+                text: 'Quando x → 1⁻ (x vem da esquerda, então x < 1): |x−1| = −(x−1)',
+                highlight: 'left',
+              },
+              {
+                text: 'Substitui: f(x) = −(x−1)/(x−1) = −1    (limite esquerdo = −1)',
+                highlight: 'left',
+              },
+              {
+                text: 'Quando x → 1⁺ (x vem da direita, então x > 1): |x−1| = +(x−1)',
+                highlight: 'right',
+              },
+              {
+                text: 'Substitui: f(x) = +(x−1)/(x−1) = +1    (limite direito = +1)',
+                highlight: 'right',
+              },
+              {
+                text: 'L⁻ = −1  ≠  L⁺ = +1 → os lados NÃO concordam',
+                highlight: 'cancel',
+              },
+            ],
+            conclusion: 'O limite não existe porque L⁻ ≠ L⁺.',
+            templateKey: 'lateral-modulo',
+          },
+          // ── PHASE 3: andaime — mesma função, com a investigação visível ─
           {
             id: 'q2-1-1',
             type: 'lateral-detective',
-            title: 'O Salto do Módulo',
-            description: 'Investigue f(x) = |x-1|/(x-1) em x = 1. Os limites laterais são iguais?',
+            title: 'Você tenta: O Salto do Módulo',
+            description: 'Investigue f(x) = |x−1|/(x−1) em x = 1. Use os botões para explorar cada lado.',
             content: {
               functionLeft: 'abs(x-1)/(x-1)',
               functionRight: 'abs(x-1)/(x-1)',
-              targetX: 1
+              targetX: 1,
             },
             correctAnswer: false,
-            explanation: 'Pela esquerda (x < 1): |x-1| = -(x-1), então f(x) = -1. Pela direita (x > 1): |x-1| = (x-1), então f(x) = +1. Como -1 ≠ +1, o limite NÃO existe!',
+            explanation: 'Pela esquerda: |x−1| = −(x−1) → f = −1. Pela direita: |x−1| = +(x−1) → f = +1. Como −1 ≠ +1, o limite NÃO existe!',
+            phase: 'scaffolded',
           },
+          // ── PHASE 4: desafio sem andaime ──────────────────────────────
           {
             id: 'q2-1-2',
             type: 'lateral-detective',
-            title: 'O Limite do Vazio',
-            description: 'Investigue f(x) = √x em x = 0. O limite existe?',
+            title: 'Desafio: √x em x = 0',
+            description: 'Investigue f(x) = √x em x = 0. O limite bilateral existe?',
             content: {
               functionLeft: 'sqrt(x)',
               functionRight: 'sqrt(x)',
-              targetX: 0
+              targetX: 0,
             },
             correctAnswer: false,
-            explanation: 'Pela direita: √x → 0 (funciona!). Pela esquerda: √x não existe para x < 0 nos números reais! Como não há limite pela esquerda, o limite global NÃO existe!',
-          }
-        ]
-      }
+            explanation: 'Pela direita: √x → 0. Pela esquerda: √x não existe nos reais para x < 0. Sem limite lateral esquerdo → limite NÃO existe.',
+            phase: 'challenge',
+          },
+        ],
+      },
     ],
     bossId: 'boss-2',
   },
@@ -258,6 +338,8 @@ export const ISLANDS: Island[] = [
               denominatorFn: 'x + 3',
               numeratorLabel: '2x + 1',
               denominatorLabel: 'x + 3',
+              numeratorTerms: ['2x', '+1'],
+              denominatorTerms: ['x', '+3'],
             },
             correctAnswer: 'tie',
             explanation: 'Ambos são de grau 1 (crescem linearmente). O limite é a razão dos coeficientes líderes: 2/1 = 2. É um empate — a fração converge para 2!',
