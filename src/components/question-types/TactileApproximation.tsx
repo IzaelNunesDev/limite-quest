@@ -34,8 +34,42 @@ export const TactileApproximation: React.FC<TactileApproximationProps> = ({
   const [precision, setPrecision] = useState(0);
   const [isClose, setIsClose] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [autoAnimDone, setAutoAnimDone] = useState(false);
   const [liveRows, setLiveRows] = useState<{ x: number; y: number; side: 'left' | 'right' | 'live' }[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Auto-approach animation on mount (builds intuition before slider interaction)
+  useEffect(() => {
+    const positions = [targetX + 1.5, targetX + 0.5, targetX + 0.1, targetX + 0.01];
+    let i = 0;
+    const id = setInterval(() => {
+      if (i < positions.length) {
+        const x = positions[i];
+        setCurrentX(x);
+        const y = evaluateFn(x);
+        if (Number.isFinite(y)) {
+          setLiveRows(prev => {
+            const next = [...prev, { x, y, side: 'live' as const }];
+            return next.slice(-4);
+          });
+        }
+        const dist = Math.abs(x - targetX);
+        if (dist < 0.001) setPrecision(3);
+        else if (dist < 0.01) setPrecision(2);
+        else if (dist < 0.1) setPrecision(1);
+        i++;
+      } else {
+        clearInterval(id);
+        setAutoAnimDone(true);
+        // Reset to a comfortable starting position for manual exploration
+        setCurrentX(targetX + 1.0);
+        setPrecision(0);
+        setLiveRows([]);
+      }
+    }, 600);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs only on mount
 
   const evaluateFn = useCallback((x: number): number => {
     try {
@@ -267,15 +301,20 @@ export const TactileApproximation: React.FC<TactileApproximationProps> = ({
       {/* Slider */}
       <div className="bg-slate-50 rounded-xl p-4 border-2 border-v-line">
         <div className="flex justify-between items-center mb-2">
-          <p className="font-bold text-slate-600 text-sm">Deslize → x = {targetX}</p>
+          <p className="font-bold text-slate-600 text-sm">
+            {autoAnimDone ? `Deslize → x = ${targetX}` : '🟡 Observe a aproximação automática...'}
+          </p>
           <span className={cn('px-3 py-1 rounded-lg font-bold text-sm', zone.color)}>
             x = {currentX.toFixed(3)}
           </span>
         </div>
         <input type="range" min={sliderMin} max={sliderMax} step="0.0001" value={currentX}
           onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
-          disabled={isAnswered}
-          className="w-full h-3 bg-white rounded-full appearance-none cursor-pointer border-2 border-v-line accent-v-primary" />
+          disabled={isAnswered || !autoAnimDone}
+          className={cn(
+            'w-full h-3 bg-white rounded-full appearance-none border-2 border-v-line accent-v-primary',
+            autoAnimDone ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
+          )} />
         <div className="flex justify-between text-xs text-slate-500 font-medium mt-1">
           <span>{sliderMin.toFixed(1)}</span>
           <span className="text-v-primary font-bold">alvo → {targetX}</span>

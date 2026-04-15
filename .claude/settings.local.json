@@ -6,7 +6,10 @@
       "Read(//c/Users/izael/**)",
       "Bash(echo \"exit: $?\")",
       "Read(//tmp/**)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(ls C:/Users/izael/Documents/limite-quest/*.env*)",
+      "Bash(ls C:/Users/izael/Documents/limite-quest/.env*)"
     ]
   }
 }

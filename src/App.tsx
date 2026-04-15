@@ -3,26 +3,54 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Star, Zap, ShoppingBag, Map as MapIcon, Trophy, Settings } from 'lucide-react';
+import { Heart, Star, Zap, ShoppingBag, Map as MapIcon, Trophy, Settings, Dumbbell } from 'lucide-react';
 import { IslandMap } from './components/IslandMap';
 import { LessonPlayer } from './components/LessonPlayer';
-import { ISLANDS, INITIAL_USER_STATE } from './constants';
-import { UserState, Lesson } from './types';
+import { ISLANDS, INITIAL_USER_STATE, CONCEPT_CARDS } from './constants';
+import { UserState, Lesson, Question } from './types';
 import { cn, formatXP } from './lib/utils';
 import { ReviewSession } from './components/ReviewSession';
 import { SettingsModal } from './components/SettingsModal';
 import { Toast } from './components/Toast';
+import { Dojo } from './components/Dojo';
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Extract all Question items from every lesson (for Leitner seeding). */
+function getAllQuestions(): Question[] {
+  return ISLANDS.flatMap(island =>
+    island.lessons.flatMap(lesson =>
+      lesson.items.filter((item): item is Question =>
+        item.type !== 'explanation' &&
+        item.type !== 'concept' &&
+        item.type !== 'worked-example' &&
+        item.type !== 'lesson-intro'
+      )
+    )
+  );
+}
+
+/** Pick the questions that are due for Leitner review from box 1. */
+function getDueQuestions(leitnerBoxes: UserState['leitnerBoxes']): Question[] {
+  const allQ = getAllQuestions();
+  const allQMap = Object.fromEntries(allQ.map(q => [q.id, q]));
+  const ids = leitnerBoxes[1] ?? [];
+  return ids.map(id => allQMap[id]).filter(Boolean);
+}
 
 export default function App() {
   const [userState, setUserState] = useState<UserState>(() => {
     const saved = localStorage.getItem('limite-quest-user');
-    return saved ? JSON.parse(saved) : INITIAL_USER_STATE;
+    const base = saved ? { ...INITIAL_USER_STATE, ...JSON.parse(saved) } : INITIAL_USER_STATE;
+    // DEV: force-unlock all islands regardless of saved state — remove for production
+    const DEV_ALL_ISLANDS = ['island-0', 'island-1', 'island-2', 'island-3', 'island-4', 'island-5'];
+    return { ...base, unlockedIslands: DEV_ALL_ISLANDS };
   });
 
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
-  const [activeTab, setActiveTab] = useState<'map' | 'shop' | 'leaderboard'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'shop' | 'leaderboard' | 'dojo'>('map');
   const [showReview, setShowReview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ message: string, visible: boolean }>({ message: '', visible: false });
@@ -57,12 +85,46 @@ export default function App() {
 
     setUserState(prev => {
       const isNew = !prev.completedLessons.includes(activeLesson.id);
+
+      // Seed Leitner box 1 with questions from the completed lesson (if first time)
+      let updatedLeitner = { ...prev.leitnerBoxes };
+      let updatedConceptLeitner = { ...prev.conceptLeitnerBoxes };
+
+      if (isNew) {
+        const lessonQuestions = activeLesson.items.filter(
+          (item): item is Question =>
+            item.type !== 'explanation' &&
+            item.type !== 'concept' &&
+            item.type !== 'worked-example' &&
+            item.type !== 'lesson-intro'
+        );
+        const existingBox1 = updatedLeitner[1] ?? [];
+        const newIds = lessonQuestions
+          .map(q => q.id)
+          .filter(id => !existingBox1.includes(id));
+        updatedLeitner = { ...updatedLeitner, 1: [...existingBox1, ...newIds] };
+
+        // Seed concept cards related to lesson question tags
+        const lessonTags = new Set<string>();
+        lessonQuestions.forEach(q => { if (q.tag) lessonTags.add(q.tag); });
+        const existingConceptBox1 = updatedConceptLeitner[1] ?? [];
+        const conceptsToAdd = CONCEPT_CARDS
+          .filter(c =>
+            c.tags.some(t => lessonTags.has(t)) &&
+            !existingConceptBox1.includes(c.id)
+          )
+          .map(c => c.id);
+        updatedConceptLeitner = { ...updatedConceptLeitner, 1: [...existingConceptBox1, ...conceptsToAdd] };
+      }
+
       return {
         ...prev,
         xp: prev.xp + xpReward,
         completedLessons: [...new Set([...prev.completedLessons, activeLesson.id])],
         streak: isNew ? prev.streak + 1 : prev.streak,
         lastPlayed: new Date().toISOString(),
+        leitnerBoxes: updatedLeitner,
+        conceptLeitnerBoxes: updatedConceptLeitner,
       };
     });
     setActiveLesson(null);
@@ -72,6 +134,17 @@ export default function App() {
     setUserState(prev => ({
       ...prev,
       hearts: Math.max(0, prev.hearts - 1),
+    }));
+  };
+
+  const handleDojoReward = (coins: number) => {
+    setUserState(prev => ({ ...prev, deltaCoins: prev.deltaCoins + coins }));
+  };
+
+  const handleDojoUpdateStats = (stats: { exercisesCompleted: number; dailyBonusClaimed: boolean }) => {
+    setUserState(prev => ({
+      ...prev,
+      dojoStatsToday: { date: new Date().toDateString(), ...stats },
     }));
   };
 
@@ -113,6 +186,7 @@ export default function App() {
         {/* Sidebar (Desktop) */}
         <aside className="hidden md:flex w-[280px] bg-white border-r-2 border-v-line p-6 flex-col gap-3">
           <NavButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} icon={<MapIcon />} label="Trilha" />
+          <NavButton active={activeTab === 'dojo'} onClick={() => setActiveTab('dojo')} icon={<Dumbbell />} label="Academia Delta" />
           <NavButton active={activeTab === 'shop'} onClick={() => setActiveTab('shop')} icon={<ShoppingBag />} label="Loja Delta" />
           <NavButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy />} label="Ranking" />
           
@@ -150,6 +224,22 @@ export default function App() {
                       }
                     }
                   }}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'dojo' && (
+              <motion.div
+                key="dojo"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Dojo
+                  deltaCoins={userState.deltaCoins}
+                  dojoStatsToday={userState.dojoStatsToday}
+                  onReward={handleDojoReward}
+                  onUpdateStats={handleDojoUpdateStats}
                 />
               </motion.div>
             )}
@@ -254,32 +344,44 @@ export default function App() {
 
       {/* Bottom Navigation (Mobile) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-v-line px-4 py-3 z-40 flex justify-around">
-        <MobileNavButton 
-          active={activeTab === 'map'} 
-          onClick={() => setActiveTab('map')}
-          icon={<MapIcon className="w-7 h-7" />}
-          label="Trilha"
-        />
-        <MobileNavButton 
-          active={activeTab === 'shop'} 
-          onClick={() => setActiveTab('shop')}
-          icon={<ShoppingBag className="w-7 h-7" />}
-          label="Loja"
-        />
-        <MobileNavButton 
-          active={activeTab === 'leaderboard'} 
-          onClick={() => setActiveTab('leaderboard')}
-          icon={<Trophy className="w-7 h-7" />}
-          label="Ranking"
-        />
+        <MobileNavButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} icon={<MapIcon className="w-7 h-7" />} label="Trilha" />
+        <MobileNavButton active={activeTab === 'dojo'} onClick={() => setActiveTab('dojo')} icon={<Dumbbell className="w-7 h-7" />} label="Dojo" />
+        <MobileNavButton active={activeTab === 'shop'} onClick={() => setActiveTab('shop')} icon={<ShoppingBag className="w-7 h-7" />} label="Loja" />
+        <MobileNavButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy className="w-7 h-7" />} label="Ranking" />
       </nav>
 
       {/* Review Overlay */}
       <AnimatePresence>
         {showReview && (
-          <ReviewSession 
-            questions={[]} // Stub for now
-            onComplete={() => setShowReview(false)}
+          <ReviewSession
+            procedural={getDueQuestions(userState.leitnerBoxes)}
+            conceptCards={CONCEPT_CARDS.filter(c =>
+              (userState.conceptLeitnerBoxes[1] ?? []).includes(c.id)
+            )}
+            onComplete={(results) => {
+              // Promote/demote in Leitner boxes based on results
+              setUserState(prev => {
+                const updated = { ...prev.leitnerBoxes };
+                results.forEach(({ id, correct }) => {
+                  // Find which box this question is in
+                  for (let box = 1; box <= 4; box++) {
+                    const idx = (updated[box] ?? []).indexOf(id);
+                    if (idx !== -1) {
+                      updated[box] = updated[box].filter(qid => qid !== id);
+                      if (correct) {
+                        const nextBox = Math.min(4, box + 1);
+                        updated[nextBox] = [...(updated[nextBox] ?? []), id];
+                      } else {
+                        updated[1] = [...(updated[1] ?? []), id];
+                      }
+                      break;
+                    }
+                  }
+                });
+                return { ...prev, leitnerBoxes: updated };
+              });
+              setShowReview(false);
+            }}
             onCancel={() => setShowReview(false)}
           />
         )}

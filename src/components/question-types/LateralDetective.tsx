@@ -32,6 +32,8 @@ export const LateralDetective: React.FC<LateralDetectiveProps> = ({
   const [investigatedRight, setInvestigatedRight] = useState(false);
   const [leftValue, setLeftValue] = useState<number | null>(null);
   const [rightValue, setRightValue] = useState<number | null>(null);
+  const [leftDomainMissing, setLeftDomainMissing] = useState(false);
+  const [rightDomainMissing, setRightDomainMissing] = useState(false);
   const [conclusion, setConclusion] = useState<boolean | null>(null);
   const [bridgeBroken, setBridgeBroken] = useState(false);
 
@@ -193,7 +195,13 @@ export const LateralDetective: React.FC<LateralDetectiveProps> = ({
     setInvestigatedLeft(true);
     const vals = [targetX - 0.1, targetX - 0.01, targetX - 0.001, targetX - 0.0001];
     const ys = vals.map(x => evaluateFn(fnLeft, x)).filter(Number.isFinite);
-    setLeftValue(ys.length === 0 ? Infinity : Math.abs(ys[ys.length - 1]) > 1000 ? Infinity : ys[ys.length - 1]);
+    if (ys.length === 0) {
+      // All values are NaN — domain missing on the left
+      setLeftDomainMissing(true);
+      setLeftValue(null);
+    } else {
+      setLeftValue(Math.abs(ys[ys.length - 1]) > 1000 ? Infinity : ys[ys.length - 1]);
+    }
   };
 
   const handleInvestigateRight = () => {
@@ -201,22 +209,29 @@ export const LateralDetective: React.FC<LateralDetectiveProps> = ({
     setInvestigatedRight(true);
     const vals = [targetX + 0.1, targetX + 0.01, targetX + 0.001, targetX + 0.0001];
     const ys = vals.map(x => evaluateFn(fnRight, x)).filter(Number.isFinite);
-    setRightValue(ys.length === 0 ? -Infinity : Math.abs(ys[ys.length - 1]) > 1000 ? Infinity : ys[ys.length - 1]);
+    if (ys.length === 0) {
+      setRightDomainMissing(true);
+      setRightValue(null);
+    } else {
+      setRightValue(Math.abs(ys[ys.length - 1]) > 1000 ? Infinity : ys[ys.length - 1]);
+    }
   };
 
   // Trigger bridge-broken animation after both sides investigated
   useEffect(() => {
     if (investigatedLeft && investigatedRight) {
+      const lVal = leftDomainMissing ? null : leftValue;
+      const rVal = rightDomainMissing ? null : rightValue;
       const match =
-        leftValue !== null && rightValue !== null &&
-        Number.isFinite(leftValue) && Number.isFinite(rightValue) &&
-        Math.abs(leftValue - rightValue) < 0.01;
+        lVal !== null && rVal !== null &&
+        Number.isFinite(lVal) && Number.isFinite(rVal) &&
+        Math.abs(lVal - rVal) < 0.01;
       if (!match) {
         const t = setTimeout(() => setBridgeBroken(true), 600);
         return () => clearTimeout(t);
       }
     }
-  }, [investigatedLeft, investigatedRight, leftValue, rightValue]);
+  }, [investigatedLeft, investigatedRight, leftValue, rightValue, leftDomainMissing, rightDomainMissing]);
 
   const bothInvestigated = investigatedLeft && investigatedRight;
 
@@ -303,6 +318,11 @@ export const LateralDetective: React.FC<LateralDetectiveProps> = ({
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition-colors">
                 <Search className="w-4 h-4 inline mr-2" />Investigar Esquerda
               </button>
+            ) : leftDomainMissing ? (
+              <div className="p-3 rounded-xl border-2 border-dashed border-red-400 bg-red-50 text-center">
+                <p className="font-bold text-red-600 text-sm">⚠️ Domínio inexistente</p>
+                <p className="text-xs text-red-500 mt-1">A função não é real para x &lt; {targetX}</p>
+              </div>
             ) : (
               <div className={cn('p-2 rounded-lg text-center font-bold text-sm',
                 Number.isFinite(leftValue) ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>

@@ -12,7 +12,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, X, CheckCircle2, AlertCircle, Info, Lightbulb, Swords } from 'lucide-react';
+import { Heart, X, CheckCircle2, AlertCircle, Info, Lightbulb, Swords, BookOpen } from 'lucide-react';
 import { Lesson, Question, LessonItem } from '../types';
 import { TactileApproximation } from './question-types/TactileApproximation';
 import { LateralDetective } from './question-types/LateralDetective';
@@ -23,6 +23,7 @@ import { EBoss } from './question-types/EBoss';
 import { FlashcardIndeterminacy } from './question-types/FlashcardIndeterminacy';
 import { ConceptIntro } from './teaching/ConceptIntro';
 import { WorkedExample } from './teaching/WorkedExample';
+import { LessonIntroCard } from './teaching/LessonIntroCard';
 import { cn } from '../lib/utils';
 import confetti from 'canvas-confetti';
 
@@ -36,9 +37,10 @@ interface LessonPlayerProps {
 
 // ── Phase indicator ────────────────────────────────────────────────────────
 
-function phaseOf(item: LessonItem): 'concept' | 'worked-example' | 'scaffolded' | 'challenge' | 'info' {
+function phaseOf(item: LessonItem): 'concept' | 'worked-example' | 'lesson-intro' | 'scaffolded' | 'challenge' | 'info' {
   if (item.type === 'concept') return 'concept';
   if (item.type === 'worked-example') return 'worked-example';
+  if (item.type === 'lesson-intro') return 'lesson-intro';
   if (item.type === 'explanation') return 'info';
   const q = item as Question;
   return q.phase === 'challenge' ? 'challenge' : q.phase === 'scaffolded' ? 'scaffolded' : 'info';
@@ -47,6 +49,7 @@ function phaseOf(item: LessonItem): 'concept' | 'worked-example' | 'scaffolded' 
 const PHASE_META = {
   concept:         { icon: <Lightbulb className="w-4 h-4" />, label: 'Conceito',      color: 'bg-purple-100 text-purple-700 border-purple-200' },
   'worked-example':{ icon: <Info className="w-4 h-4" />,      label: 'Exemplo',       color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  'lesson-intro':  { icon: <BookOpen className="w-4 h-4" />,  label: 'Introdução',    color: 'bg-amber-100 text-amber-700 border-amber-200' },
   scaffolded:      { icon: <Lightbulb className="w-4 h-4" />, label: 'Você tenta',    color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
   challenge:       { icon: <Swords className="w-4 h-4" />,    label: 'Desafio',       color: 'bg-red-100 text-red-700 border-red-200' },
   info:            { icon: <Info className="w-4 h-4" />,       label: 'Informação',   color: 'bg-slate-100 text-slate-600 border-slate-200' },
@@ -109,6 +112,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({
     if (currentItem.type === 'explanation') { nextItem(); return; }
     if (currentItem.type === 'concept') { nextItem(); return; }
     if (currentItem.type === 'worked-example') { nextItem(); return; }
+    if (currentItem.type === 'lesson-intro') { nextItem(); return; }
 
     const question = currentItem as Question;
     let correct = false;
@@ -139,6 +143,7 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({
     if (currentItem.type === 'explanation') return true;
     if (currentItem.type === 'concept') return false; // ConceptIntro has its own button
     if (currentItem.type === 'worked-example') return workedExampleDone;
+    if (currentItem.type === 'lesson-intro') return false; // LessonIntroCard has its own button
     if (isAnswered) return true;
 
     const q = currentItem as Question;
@@ -187,14 +192,29 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({
             className="space-y-6"
           >
             {/* Phase badge (only when there are multiple phases in this lesson) */}
-            {phase !== 'info' && (
+            {phase !== 'info' && phase !== 'lesson-intro' && (
               <div className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-bold', phaseMeta.color)}>
                 {phaseMeta.icon}
                 {phaseMeta.label}
               </div>
             )}
 
-            <h2 className="text-3xl font-black text-v-text">{currentItem.title}</h2>
+            {/* Title — hidden for lesson-intro (LessonIntroCard has its own header) */}
+            {currentItem.type !== 'lesson-intro' && (
+              <h2 className="text-3xl font-black text-v-text">{currentItem.title}</h2>
+            )}
+
+            {/* ── LESSON INTRO PHASE ── */}
+            {currentItem.type === 'lesson-intro' && (
+              <LessonIntroCard
+                title={currentItem.title}
+                subtitle={currentItem.subtitle}
+                icon={currentItem.icon}
+                accentColor={currentItem.accentColor}
+                sections={currentItem.sections}
+                onDone={nextItem}
+              />
+            )}
 
             {/* ── CONCEPT PHASE ── */}
             {currentItem.type === 'concept' && (
@@ -363,8 +383,8 @@ export const LessonPlayer: React.FC<LessonPlayerProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* Footer — hidden for concept and worked-example (both have their own buttons) */}
-      {currentItem.type !== 'concept' && currentItem.type !== 'worked-example' && (
+      {/* Footer — hidden for types that have their own navigation buttons */}
+      {currentItem.type !== 'concept' && currentItem.type !== 'worked-example' && currentItem.type !== 'lesson-intro' && (
         <div className={cn(
           'p-6 md:p-10 border-t-2 transition-colors shrink-0',
           isAnswered

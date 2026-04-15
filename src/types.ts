@@ -73,12 +73,50 @@ export interface WorkedExampleStep {
   templateKey?: string;
 }
 
+// ── Rich lesson introduction ─────────────────────────────────────────────────
+
+/** One section inside a LessonIntroItem. Each type has its own visual treatment. */
+export interface IntroSection {
+  /** Visual treatment to use */
+  type: 'hook' | 'analogy' | 'insight' | 'numbered-list' | 'visual';
+  title?: string;
+  /** Body text (hook / insight / visual caption) */
+  content?: string;
+  /** Emoji icon shown alongside insight sections */
+  icon?: string;
+  /** Analogy: left column (real world) */
+  realWorld?: string;
+  /** Analogy: right column (mathematics) */
+  mathWorld?: string;
+  /** Numbered-list items */
+  items?: string[];
+  /** Key for ConceptIntro visual animations */
+  visual?: ConceptStep['visual'];
+}
+
+/**
+ * A rich, section-by-section lesson introduction.
+ * Sections are revealed one-at-a-time as the student clicks "Próximo".
+ * Replaces the plain `explanation` type for module-opening content.
+ */
+export interface LessonIntroItem {
+  type: 'lesson-intro';
+  title: string;
+  subtitle?: string;
+  /** Emoji shown in the header */
+  icon?: string;
+  /** CSS color string for the gradient header */
+  accentColor?: string;
+  sections: IntroSection[];
+}
+
 /** All possible items inside a Lesson */
 export type LessonItem =
   | Question
   | ExplanationItem
   | ConceptStep
-  | WorkedExampleStep;
+  | WorkedExampleStep
+  | LessonIntroItem;
 
 export interface Lesson {
   id: string;
@@ -124,4 +162,10 @@ export interface UserState {
     [boxId: number]: string[];
   };
   inventory: string[];
+  /** Dojo daily stats — resets each new calendar day */
+  dojoStatsToday: {
+    date: string;
+    exercisesCompleted: number;
+    dailyBonusClaimed: boolean;
+  };
 }
